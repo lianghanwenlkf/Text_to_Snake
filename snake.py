@@ -3,9 +3,10 @@ import os
 import time
 import cv2
 from moviepy import VideoFileClip, AudioFileClip
+from tqdm import tqdm
 
 # 贪吃蛇的路径
-space_path = [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0)]
+space_path = [(0, -3), (1, -3), (2, -3), (3, -3), (4, -3), (5, -3), (6, -3), (7, -3), (8, -3)]
 a_path = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (1, 5), (1, 6), (1, 7), (2, 7), (2, 8), (2, 9), (3, 9),
           (3, 10), (3, 11), (4, 11), (5, 11), (5, 10), (5, 9), (6, 9), (6, 8), (6, 7), (7, 7), (7, 6), (7, 5), (8, 5),
           (8, 4), (8, 3), (7, 3), (6, 3), (5, 3), (4, 3), (3, 3), (2, 3), (1, 3), (1, 2), (2, 2), (3, 2), (4, 2),
@@ -122,8 +123,8 @@ z_path = [(0, 0), (0, 1), (0, 2), (0, 3), (1, 3), (1, 4), (2, 4), (2, 5), (3, 5)
           (3, 0), (2, 0), (1, 0), ]
 
 # 食物位置
-space_food = [(4, 0)]
-a_food = [(0, 5), (4, 11), (8, 5), (1, 3), (8, 0)]
+space_food = []
+a_food = [(0, 5), (4, 11), (8, 5), (1, 3)]
 b_food = [(0, 11), (8, 8), (1, 6), (8, 3)]
 c_food = [(2, 0), (0, 4), (4, 11), (8, 9), (4, 10), (1, 7), (3, 1), (8, 0)]
 d_food = [(0, 7), (4, 11), (8, 6), (8, 5), (5, 0)]
@@ -131,7 +132,7 @@ e_food = [(0, 11), (8, 10), (1, 8), (8, 6), (1, 1), (8, 0), ]
 f_food = [(0, 11), (8, 10), (1, 8), (8, 5), ]
 g_food = [(2, 0), (0, 2), (2, 11), (8, 9), (5, 10), (1, 7), (3, 1), (7, 4), (8, 0), ]
 h_food = [(0, 11), (1, 6), (7, 6), (7, 11), (7, 0), (7, 5), (1, 5), ]
-i_food = [(3, 11), (4, 0), ]
+i_food = [(3, 11)]
 j_food = [(2, 0), (0, 2), (3, 1), (7, 3), (6, 10), (7, 0), ]
 k_food = [(0, 11), (1, 6), (7, 11), (4, 6), (8, 2), (2, 5), ]
 l_food = [(0, 11), (1, 1), (8, 0), ]
@@ -143,7 +144,7 @@ q_food = [(4, 0), (0, 2), (2, 11), (8, 9), (6, 2), (4, 4), (8, 0), ]
 r_food = [(0, 11), (8, 8), (5, 5), (1, 4), (8, 0), ]
 s_food = [(0, 1), (7, 3), (0, 7), (2, 11), (8, 10), (1, 8), (7, 6), (5, 0), ]
 t_food = [(3, 10), (0, 11), (7, 10), ]
-u_food = [(0, 1), (1, 11), (3, 1), (7, 3), (8, 11), (7, 1), ]
+u_food = [(1, 0), (0, 11), (3, 1), (7, 3), (8, 11), (7, 1), ]
 v_food = [(3, 0), (0, 3), (1, 11), (4, 2), (7, 5), (7, 11), (4, 0), ]
 w_food = [(0, 11), (2, 0), (3, 10), (6, 0), (7, 11), ]
 x_food = [(0, 1), (3, 4), (3, 8), (0, 11), (4, 9), (8, 11), (4, 8), (4, 3), ]
@@ -326,7 +327,15 @@ def save_video(image_folder, music_file, output_video_file):
     video_with_audio.write_videofile(output_video_file, codec='libx264')
 
 
-def make_snake(lines, block_size, screen_width, screen_height, background_color, food_color, body_color, output_folder):
+# 时间格式化函数，转换为时分秒
+def convert_seconds_to_hms(seconds):
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds = seconds % 60
+    return f"{hours}h {minutes}m {seconds:.4f}s"
+
+
+def make_snake(lines, block_size, screen_width, screen_height, background_color, food_color, body_color, output_folder, main_i, main_len, name):
     # 初始化 Pygame
     pygame.init()
     snake_path = [(0, (len(lines) - 1) * 17), (1, (len(lines) - 1) * 17), (2, (len(lines) - 1) * 17)]
@@ -340,25 +349,36 @@ def make_snake(lines, block_size, screen_width, screen_height, background_color,
             (x0, y0) = modified_path[0]
             (x1, y1) = modified_path[-1]
             (x2, y2) = snake_path[-1]
-            for j in range(x0 - x2):
-                snake_path.append((x2 + j + 1, y0 - 3))
-            for k in range(3):
-                snake_path.append((x0, y2 + k))
-            for position in modified_path:
-                snake_path.append(position)
-            snake_path.append((x1, y1 - 1))
-            snake_path.append((x1, y1 - 2))
-            snake_path.append((x1, y1 - 3))
+            if item != ' ':
+                for j in range(x0 - x2):
+                    snake_path.append((x2 + j + 1, y0 - 3))
+                for k in range(3):
+                    snake_path.append((x0, y2 + k))
+                for position in modified_path:
+                    snake_path.append(position)
+                snake_path.append((x1, y1 - 1))
+                snake_path.append((x1, y1 - 2))
+                snake_path.append((x1, y1 - 3))
+            else:
+                for j in range(x0 - x2):
+                    snake_path.append((x2 + j + 1, y0))
+                for position in modified_path:
+                    snake_path.append(position)
             x3 = x1
             y3 = y1 - 3
 
-            for position in modified_food:
-                food_positions.append(position)
-            food_positions.append((x1, y1 - 3))
+            if item != ' ':
+                for position in modified_food:
+                    food_positions.append(position)
+                food_positions.append((x1, y1 - 3))
+            else:
+                food_positions.append((x1, y1))
 
         for index in range(int(screen_width / block_size - x3)):
             snake_path.append((x3 + index, y3))
         snake_path.append((0, y3 - 17))
+    for tt in range(int(screen_width / block_size)):
+        snake_path.append((tt, screen_height-1))
 
     # 创建保存图片的文件夹
     if not os.path.exists(output_folder):
@@ -373,7 +393,7 @@ def make_snake(lines, block_size, screen_width, screen_height, background_color,
     step = 0  # 步数
 
     # 游戏循环
-    for i in range(3, len(snake_path)):  # 从第4个位置开始走
+    for i in tqdm(range(3, len(snake_path)), desc=f"{main_i+1}/{main_len}:{name} is processing"):  # 从第4个位置开始走
         # 更新蛇的位置
         snake.append(snake_path[i])
 
@@ -389,7 +409,6 @@ def make_snake(lines, block_size, screen_width, screen_height, background_color,
 
         # 增加步数
         step += 1
-        time.sleep(0.01)  # 每一步间隔0.5秒
 
         # 事件处理
         for event in pygame.event.get():
@@ -402,36 +421,44 @@ def make_snake(lines, block_size, screen_width, screen_height, background_color,
 
 def main():
     name_list = [
-        ['shen','ying'],
-        ['zhong','guo xian'],
-        ['dong','chen xi']
+        ['liu','wang'],
+        ['huang','li jin'],
+        ['fang','wei']
     ]
-    for name in name_list:
+    block_size = 30
+    background_color = (255, 255, 255)
+    body_color = (0, 0, 0)
+    food_color = (255, 0, 0)
+    output_folder = "output"
+    music_file = 'STAYC - Bubble.mp3'
+
+    start_time = time.time()
+    for i, name in enumerate(name_list):
+        loop_start_time = time.time()
         line_1 = name[0]
         line_2 = name[1]
         line_3 = 'happy'
         line_4 = 'the year'
         line_5 = 'of snake'
 
-        output_folder = "output"
         image_folder = f'{output_folder}/{line_1} {line_2}/image'
-        music_file = r'C:\Users\liang\Music\STAYC - Bubble.mp3'
-        output_video_file = f'{output_folder}/{line_1} {line_2}/output_video.mp4'
+        output_video_file = f'{output_folder}/{line_1} {line_2}.mp4'
 
         lines = [line_1, line_2, line_3, line_4, line_5]
 
         # 游戏窗口设置（宽度和高度）
-        block_size = 30
         screen_width = (10 * max(len(line_1), len(line_2), len(line_3), len(line_4), len(line_5)) + 6) * block_size
         screen_height = 17 * block_size * len(lines)
 
-        # 颜色定义
-        background_color = (255, 255, 255)
-        body_color = (0, 0, 0)
-        food_color = (255, 0, 0)
-
-        make_snake(lines, block_size, screen_width, screen_height, background_color, food_color, body_color, image_folder)
+        make_snake(lines, block_size, screen_width, screen_height, background_color, food_color, body_color, image_folder, i, len(name_list), f'{line_1} {line_2}')
         save_video(image_folder, music_file, output_video_file)
+
+        loop_end_time = time.time()
+        loop_duration = loop_end_time - loop_start_time
+        print(f"Loop {i + 1}/{len(name_list)} took {convert_seconds_to_hms(loop_duration)}")
+    end_time = time.time()
+    total_duration = end_time - start_time
+    print(f"Total time for execution: {convert_seconds_to_hms(total_duration)}")
 
 
 if __name__ == "__main__":
